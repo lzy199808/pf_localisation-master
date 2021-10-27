@@ -30,49 +30,6 @@ class PFLocaliser(PFLocaliserBase):
         self.PARTICLE_POSITIONAL_NOISE = np.random.uniform(75, 100)
         self.PARTICLE_ANGULAR_NOISE = np.random.uniform(1, 120)
 
-    def generate_cloud_noise(self, pose):
-        # 对In order to converge to the new pose, adjust the noise parameters
-        if self.ROTATION_NOISE > 0.2:
-            self.ROTATION_NOISE -= 0.05
-
-        else:
-            self.ROTATION_NOISE = np.random.uniform(0.05, 0.2)
-
-        if self.TRANSLATION_NOISE > 0.2:
-            self.TRANSLATION_NOISE -= 0.05
-
-        else:
-            self.TRANSLATION_NOISE = np.random.uniform(0.05, 0.2)
-
-        if self.DRIFT_NOISE > 0.2:
-            self.DRIFT_NOISE -= 0.05
-
-        else:
-            self.DRIFT_NOISE = np.random.uniform(0.05, 0.2)
-
-        if self.PARTICLE_POSITIONAL_NOISE > 2.0:
-            self.PARTICLE_POSITIONAL_NOISE -= 0.1
-
-        else:
-            self.PARTICLE_POSITIONAL_NOISE = np.random.uniform(0.05, 2)
-
-        if self.PARTICLE_ANGULAR_NOISE > 90.0:
-            self.PARTICLE_ANGULAR_NOISE -= 1.0
-
-        else:
-           self.PARTICLE_ANGULAR_NOISE = np.random.uniform(0.05, 90)
-
-        # Adds position noise to the x and y coordinates
-        pose.position.x += random.gauss(0, self.PARTICLE_POSITIONAL_NOISE) * self.TRANSLATION_NOISE
-        pose.position.y += random.gauss(0, self.PARTICLE_POSITIONAL_NOISE) * self.DRIFT_NOISE
-        
-        # Add Angular noise
-        ANGULAR_NOISE = (random.vonmisesvariate(0, self.PARTICLE_ANGULAR_NOISE) - math.pi) * self.ROTATION_NOISE
-
-        # Add orientation noise
-        pose.orientation = rotateQuaternion(pose.orientation, ANGULAR_NOISE)
-        
-        return pose
 
   
     def initialise_particle_cloud(self, initial_pose):
@@ -98,8 +55,7 @@ class PFLocaliser(PFLocaliserBase):
             pose.position.y = initial_pose.pose.pose.position.y + positional_noise_y
 
             ANGULAR_NOISE = (random.vonmisesvariate(0, self.PARTICLE_ANGULAR_NOISE) - math.pi) * self.ROTATION_NOISE
-            
-            # 添加旋转噪声到姿态对象中的粒子的方向
+
             pose.orientation = rotateQuaternion(initial_pose.pose.pose.orientation, ANGULAR_NOISE)
 
             pose_array.poses.append(pose)
@@ -147,8 +103,47 @@ class PFLocaliser(PFLocaliserBase):
 
             pose_array.poses.append(copy.deepcopy(self.particlecloud.poses[i - 1]))
 
+        # In order to converge to the new pose, adjust the noise parameters
         for poses in pose_array.poses:
-            poses = self.generate_cloud_noise(poses)
+            if self.ROTATION_NOISE > 0.2:
+                self.ROTATION_NOISE -= 0.05
+
+            else:
+                self.ROTATION_NOISE = np.random.uniform(0.05, 0.2)
+
+            if self.TRANSLATION_NOISE > 0.2:
+                self.TRANSLATION_NOISE -= 0.05
+
+            else:
+                self.TRANSLATION_NOISE = np.random.uniform(0.05, 0.2)
+
+            if self.DRIFT_NOISE > 0.2:
+                self.DRIFT_NOISE -= 0.05
+
+            else:
+                self.DRIFT_NOISE = np.random.uniform(0.05, 0.2)
+
+            if self.PARTICLE_POSITIONAL_NOISE > 2.0:
+                self.PARTICLE_POSITIONAL_NOISE -= 0.1
+
+            else:
+                self.PARTICLE_POSITIONAL_NOISE = np.random.uniform(0.05, 2)
+
+            if self.PARTICLE_ANGULAR_NOISE > 90.0:
+                self.PARTICLE_ANGULAR_NOISE -= 1.0
+
+            else:
+                self.PARTICLE_ANGULAR_NOISE = np.random.uniform(0.05, 90)
+
+            # Adds position noise to the x and y coordinates
+            poses.position.x += random.gauss(0, self.PARTICLE_POSITIONAL_NOISE) * self.TRANSLATION_NOISE
+            poses.position.y += random.gauss(0, self.PARTICLE_POSITIONAL_NOISE) * self.DRIFT_NOISE
+
+            # Add Angular noise
+            ANGULAR_NOISE = (random.vonmisesvariate(0, self.PARTICLE_ANGULAR_NOISE) - math.pi) * self.ROTATION_NOISE
+
+            # Add orientation noise
+            poses.orientation = rotateQuaternion(poses.orientation, ANGULAR_NOISE)
         
         self.particlecloud = pose_array
         """
