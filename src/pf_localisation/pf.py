@@ -19,19 +19,38 @@ class PFLocaliser(PFLocaliserBase):
         
         # ----- Set motion model parameters
 
-        self.ROTATION_NOISE = np.random.uniform(0.05, 0.2)
-        self.TRANSLATION_NOISE = np.random.uniform(0.05, 0.2)
-        self.DRIFT_NOISE = np.random.uniform(0.05, 0.2)
+        self.ROTATION_NOISE = np.random.uniform(0.01, 0.3)
+        self.TRANSLATION_NOISE = np.random.uniform(0.01, 0.3)
+        self.DRIFT_NOISE = np.random.uniform(0.01, 0.3)
 
         # ----- Set sensor model parameters
 
-        self.NUMBER_PREDICTED_READINGS = 20
+        self.NUMBER_PREDICTED_READINGS = 90
         self.PARTICLE_COUNT = 200
 
         # ----- Set noise parameters
 
-        self.PARTICLE_POS_NOISE = np.random.uniform(60, 100)
-        self.PARTICLE_ANG_NOISE = np.random.uniform(1, 135)
+        self.PARTICLE_POS_NOISE = np.random.uniform(75, 100)
+        self.PARTICLE_ANG_NOISE = np.random.uniform(1, 120)
+        
+    def cloud_converge(self, poses):
+        noise = []
+        noise.append(self.ROTATION_NOISE)
+        noise.append(self.TRANSLATION_NOISE)
+        noise.append(self.DRIFT_NOISE)
+        noise.append(self.PARTICLE_POS_NOISE)
+        noise.append(self.PARTICLE_ANG_NOISE)
+        noise[0] = noise[0] - 0.01 if noise[0]> 0.1 else np.random.uniform(0.01, 0.1) 
+        noise[1] = noise[1] - 0.01 if noise[1]> 0.1 else np.random.uniform(0.01, 0.1) 
+        noise[2] = noise[2] - 0.01 if noise[2]> 0.1 else np.random.uniform(0.01, 0.1) 
+        noise[3] = noise[3] - 0.1 if noise[2]> 2.0 else np.random.uniform(0.01, 2) 
+        noise[4] = noise[4] - 1.0 if noise[2]> 90 else np.random.uniform(0.01, 90) 
+        poses.position.x += random.gauss(0, noise[3]) * noise[1]
+        poses.position.y += random.gauss(0, noise[3]) * noise[2]
+        angular_noise = (random.vonmisesvariate(0, noise[4]) - math.pi) * noise[0]
+        poses.orientation = rotateQuaternion(poses.orientation, angular_noise)
+
+        return poses
 
     def initialise_particle_cloud(self, initial_pose):
         """
@@ -103,36 +122,11 @@ class PFLocaliser(PFLocaliserBase):
 
             pose_array.poses.append(copy.deepcopy(self.particlecloud.poses[i - 1]))
 
-        # In order to converge to the new pose, adjust the noise parameters
-
-        noise = []
-        noise[0] = self.ROTATION_NOISE
-        noise[1] = self.TRANSLATION_NOISE
-        noise[2] = self.DRIFT_NOISE
-        noise[3] = self.PARTICLE_POS_NOISE
-        noise[4] = self.PARTICLE_ANG_NOISE
-        noise[0] = noise[0] - 0.1 if noise[0] > 0.2 else np.random.uniform(0.05, 0.2)
-        noise[1] = noise[1] - 0.1 if noise[1] > 0.2 else np.random.uniform(0.05, 0.2)
-        noise[2] = noise[2] - 0.1 if noise[2] > 0.2 else np.random.uniform(0.05, 0.2)
-        noise[3] = noise[3] - 0.1 if noise[3] > 0.2 else np.random.uniform(0.05, 0.2)
-        noise[4] = noise[4] - 1 if noise[4] > 90.0 else np.random.uniform(0.05, 90)
-        # print(noise)
-
+        # In order to converge to the new pose, adjust the noise parameters         
+        
         for poses in pose_array.poses:
-            # Adds position noise to the x and y coordinates
-
-            poses.position.x += random.gauss(0, noise[3]) * noise[1]
-            poses.position.y += random.gauss(0, noise[3]) * self.noise[2]
-
-            # Add Angular noise
-
-            angular_noise = (random.vonmisesvariate(0, noise[4]) - math.pi) * noise[0]
-
-            # Add orientation noise
-
-            poses.orientation = rotateQuaternion(poses.orientation, angular_noise)
-
-        # print(pose_array)
+            poses = self.cloud_converge(poses) 
+            
         self.particlecloud = pose_array
 
         # Output the estimated position and orientation of the robot
@@ -204,13 +198,13 @@ class PFLocaliser(PFLocaliserBase):
 
         link_matrix = linkage(dis_matrix, method='median')
 
-        cluster_characteristic = fcluster(link_matrix, cluster_distance_threshold, criterion='distance')
+        cluster_characteristics = fcluster(link_matrix, cluster_distance_threshold, criterion='distance')
 
-        cluster_count = max(cluster_characteristic)
+        cluster_count = max(cluster_characteristics)
         cluster_counts = [0] * cluster_count
         cluster_weight_sums = [0] * cluster_count
 
-        for i, cluster_characteristic in enumerate(cluster_characteristic):
+        for i, cluster_characteristic in enumerate(cluster_characteristics):
             pose = self.particlecloud.poses[i]
 
             cluster_weight = self.sensor_model.get_weight(latest_scan, pose)
@@ -226,7 +220,7 @@ class PFLocaliser(PFLocaliserBase):
         # Initializes the position and orientation
 
         position_sum_x, position_sum_y, orientation_sum_z, orientation_sum_w = (0 for _ in range(4))
-        for i, cluster_characteristic in enumerate(cluster_characteristic):
+        for i, cluster_characteristic in enumerate(cluster_characteristics):
             if cluster_characteristic == cluster_highest_weight:
                 pose = self.particlecloud.poses[i]
                 position_sum_x += pose.position.x
